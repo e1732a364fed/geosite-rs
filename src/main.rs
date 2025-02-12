@@ -12,7 +12,7 @@ fn main() -> std::io::Result<()> {
 
     // 打印解析结果
     for site in proto_list.site_group {
-        println!("Country: {}", site.tag);
+        println!("Tag: {}", site.tag);
         for domain in site.domain {
             println!("  - Type: {:?}, Value: {}", domain.r#type(), domain.value);
         }
