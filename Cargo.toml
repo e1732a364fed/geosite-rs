@@ -1,0 +1,17 @@
+[package]
+name = "geosite-rs"
+version = "0.1.0"
+edition = "2021"
+categories = ["data-structures"]
+keywords = ["geosite", "protobuf"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "A simple crate that parses geosite.dat file format"
+homepage = "https://github.com/e1732a364fed/geosite-rs"
+repository = "https://github.com/e1732a364fed/geosite-rs"
+
+[dependencies]
+prost = "0.13.5"
+
+# [build-dependencies]
+# prost-build = "0.13.5"
