@@ -98,6 +98,9 @@ pub struct SiteGroupList {
 }
 
 #[cfg(feature = "rusqlite")]
+pub use rusqlite;
+
+#[cfg(feature = "rusqlite")]
 use rusqlite::{params, Connection, Result};
 
 /// sqlite 格式中目前支持的clash 规则名
@@ -112,6 +115,8 @@ pub const RULE_TYPES: &[&str] = &[
     "geoip",
 ];
 /// 初始化数据库
+///
+/// create eg: let mut conn = Connection::open("rules.db")?;
 #[cfg(feature = "rusqlite")]
 pub fn init_db(conn: &Connection) -> Result<()> {
     for &table in RULE_TYPES {
@@ -128,7 +133,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// 将 `SiteGroupList` 保存到 SQLite（存入 Clash 规则表）
+/// 将 `SiteGroupList` 保存到 SQLite
 #[cfg(feature = "rusqlite")]
 pub fn save_to_sqlite(conn: &mut Connection, site_group_list: &SiteGroupList) -> Result<()> {
     let tx = conn.transaction()?;
@@ -206,15 +211,12 @@ fn test_sql() -> Result<(), Box<dyn std::error::Error>> {
     let mut conn = Connection::open("rules.db")?;
     init_db(&conn)?;
 
-    // 假设我们有 protobuf 二进制数据
     use std::fs;
     let buf = fs::read("geosite.dat")?;
     let site_group_list = read(&buf)?;
 
-    // 保存到 SQLite
     save_to_sqlite(&mut conn, &site_group_list)?;
 
-    // 从 SQLite 读取数据
     let loaded_site_group_list = load_from_sqlite(&conn)?;
     println!(
         "Loaded SiteGroupList: {:?}",
