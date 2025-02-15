@@ -17,6 +17,12 @@ fn main() -> std::io::Result<()> {
             println!("  - Type: {:?}, Value: {}", domain.r#type(), domain.value);
         }
     }
+    // for group in proto_list.site_group {
+    //     if group.tag == "GEOLOCATION-CN"{
+    //     }
+    //     if group.tag == "GEOLOCATION-!CN"{
+    //     }
+    // }
 
     Ok(())
 }

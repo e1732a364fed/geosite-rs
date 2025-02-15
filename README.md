@@ -6,4 +6,9 @@ https://github.com/Loyalsoldier/v2ray-rules-dat
 and
 https://github.com/v2fly/domain-list-community
 
+
+Also has a rusqlite feature(disabled by default) to convert the format
+from and into sqlite format. The database is compatible with the database
+defined in the crate "clash_rules", which can be used to do crud with the data.
+
 commented out code in build.rs shows how to generate the protobuf rust code.
