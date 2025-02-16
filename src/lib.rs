@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use prost::Message;
 
 /// parse dat data (which has protobuf format)
@@ -8,6 +10,30 @@ pub fn read(buf: &[u8]) -> Result<SiteGroupList, prost::DecodeError> {
 /// save to the dat format (which has protobuf format)
 pub fn save(sg: SiteGroupList) -> Vec<u8> {
     sg.encode_to_vec()
+}
+
+/// covert to a hashmap that is compatible with the one in crate 'clash_rules'
+///
+/// key is "DOMAIN-KEYWORD","DOMAIN-SUFFIX","DOMAIN","DOMAIN-REGEX".
+pub fn to_hashmap(site_group_list: &SiteGroupList) -> HashMap<String, Vec<Vec<String>>> {
+    let mut map: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+
+    for group in &site_group_list.site_group {
+        for domain in &group.domain {
+            let key = match domain.r#type {
+                0 => "DOMAIN-KEYWORD", // Plain
+                1 => "DOMAIN-SUFFIX",  // Domain
+                2 => "DOMAIN",         // Full
+                3 => "DOMAIN-REGEX",   // Regex
+                _ => continue,         // 跳过未知类型
+            };
+
+            let v = vec![domain.value.clone(), group.tag.clone()];
+            map.entry(key.to_string()).or_default().push(v);
+        }
+    }
+
+    map
 }
 //include!(concat!(env!("OUT_DIR"), "/_.rs"));
 //
@@ -104,7 +130,7 @@ pub use rusqlite;
 use rusqlite::{params, Connection, Result};
 
 /// sqlite 格式中目前支持的clash 规则名
-pub const RULE_TYPES: &[&str] = &[
+pub const RULE_TABLE_NAMES: &[&str] = &[
     "domain",
     "domain_keyword",
     "domain_suffix",
@@ -119,7 +145,7 @@ pub const RULE_TYPES: &[&str] = &[
 /// create eg: let mut conn = Connection::open("rules.db")?;
 #[cfg(feature = "rusqlite")]
 pub fn init_db(conn: &Connection) -> Result<()> {
-    for &table in RULE_TYPES {
+    for &table in RULE_TABLE_NAMES {
         let create_table_sql = format!(
             "CREATE TABLE IF NOT EXISTS {} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
