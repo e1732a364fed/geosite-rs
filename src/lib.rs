@@ -3,12 +3,22 @@ use std::collections::HashMap;
 use prost::Message;
 
 /// parse dat data (which has protobuf format)
-pub fn read(buf: &[u8]) -> Result<SiteGroupList, prost::DecodeError> {
+pub fn decode_geosite(buf: &[u8]) -> Result<SiteGroupList, prost::DecodeError> {
     SiteGroupList::decode(buf)
 }
 
 /// save to the dat format (which has protobuf format)
-pub fn save(sg: SiteGroupList) -> Vec<u8> {
+pub fn encode_geosite(sg: SiteGroupList) -> Vec<u8> {
+    sg.encode_to_vec()
+}
+///
+/// parse dat data (which has protobuf format)
+pub fn decode_geoip(buf: &[u8]) -> Result<GeoIpList, prost::DecodeError> {
+    GeoIpList::decode(buf)
+}
+
+/// save to the dat format (which has protobuf format)
+pub fn encode_geoip(sg: GeoIpList) -> Vec<u8> {
     sg.encode_to_vec()
 }
 
@@ -122,132 +132,27 @@ pub struct SiteGroupList {
     #[prost(message, repeated, tag = "1")]
     pub site_group: ::prost::alloc::vec::Vec<SiteGroup>,
 }
-
-#[cfg(feature = "rusqlite")]
-pub use rusqlite;
-
-#[cfg(feature = "rusqlite")]
-use rusqlite::{params, Connection, Result};
-
-/// sqlite 格式中目前支持的clash 规则名
-pub const RULE_TABLE_NAMES: &[&str] = &[
-    "domain",
-    "domain_keyword",
-    "domain_suffix",
-    "domain_regex",
-    "ip_cidr",
-    "ip_cidr6",
-    "process_name",
-    "geoip",
-];
-/// 初始化数据库
-///
-/// create eg: let mut conn = Connection::open("rules.db")?;
-#[cfg(feature = "rusqlite")]
-pub fn init_db(conn: &Connection) -> Result<()> {
-    for &table in RULE_TABLE_NAMES {
-        let create_table_sql = format!(
-            "CREATE TABLE IF NOT EXISTS {} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL,
-                target TEXT NOT NULL
-            )",
-            table,
-        );
-        conn.execute(&create_table_sql, [])?;
-    }
-    Ok(())
+/// IP for routing decision, in CIDR form.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Cidr {
+    /// IP address, should be either 4 or 16 bytes.
+    #[prost(bytes = "vec", tag = "1")]
+    pub ip: ::prost::alloc::vec::Vec<u8>,
+    /// Number of leading ones in the network mask.
+    #[prost(uint32, tag = "2")]
+    pub prefix: u32,
 }
-
-/// 将 `SiteGroupList` 保存到 SQLite
-#[cfg(feature = "rusqlite")]
-pub fn save_to_sqlite(conn: &mut Connection, site_group_list: &SiteGroupList) -> Result<()> {
-    let tx = conn.transaction()?;
-
-    for group in &site_group_list.site_group {
-        for domain in &group.domain {
-            let table = match domain.r#type {
-                0 => "domain_keyword", // Plain
-                1 => "domain_suffix",  // Domain
-                2 => "domain",         // Full
-                3 => "domain_regex",   // Regex
-                _ => continue,         // 跳过未知类型
-            };
-
-            tx.execute(
-                &format!(
-                    "INSERT OR IGNORE INTO {} (content, target) VALUES (?1, ?2)",
-                    table
-                ),
-                params![domain.value, group.tag],
-            )?;
-        }
-    }
-
-    tx.commit()
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GeoIp {
+    #[prost(string, tag = "1")]
+    pub country_code: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub cidr: ::prost::alloc::vec::Vec<Cidr>,
+    #[prost(bool, tag = "3")]
+    pub reverse_match: bool,
 }
-
-/// 从 SQLite 加载 `SiteGroupList`
-#[cfg(feature = "rusqlite")]
-pub fn load_from_sqlite(conn: &Connection) -> Result<SiteGroupList> {
-    let rule_tables = &[
-        ("domain_keyword", domain::Type::Plain),
-        ("domain_suffix", domain::Type::Domain),
-        ("domain", domain::Type::Full),
-        ("domain_regex", domain::Type::Regex),
-    ];
-
-    let mut groups_map = std::collections::HashMap::<String, Vec<Domain>>::new();
-
-    for &(table, domain_type) in rule_tables {
-        let mut stmt = conn.prepare(&format!("SELECT content, target FROM {}", table))?;
-        let rows = stmt.query_map([], |row| {
-            let name: String = row.get(0)?;
-            // 以 target 作为 group name
-            let group_name: String = row.get(1)?;
-            Ok((name, group_name))
-        })?;
-
-        for row in rows {
-            let (name, group_name) = row?;
-            groups_map.entry(group_name).or_default().push(Domain {
-                value: name,
-                r#type: domain_type as i32,
-                attribute: vec![],
-            });
-        }
-    }
-
-    let groups = groups_map
-        .into_iter()
-        .map(|(group_name, domains)| SiteGroup {
-            tag: group_name,
-            domain: domains,
-        })
-        .collect();
-
-    Ok(SiteGroupList { site_group: groups })
-}
-
-/// 示例测试
-/// cargo test -F rusqlite -- --nocapture
-#[cfg(feature = "rusqlite")]
-#[test]
-fn test_sql() -> Result<(), Box<dyn std::error::Error>> {
-    let mut conn = Connection::open("rules.db")?;
-    init_db(&conn)?;
-
-    use std::fs;
-    let buf = fs::read("geosite.dat")?;
-    let site_group_list = read(&buf)?;
-
-    save_to_sqlite(&mut conn, &site_group_list)?;
-
-    let loaded_site_group_list = load_from_sqlite(&conn)?;
-    println!(
-        "Loaded SiteGroupList: {:?}",
-        loaded_site_group_list.site_group.len()
-    );
-
-    Ok(())
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GeoIpList {
+    #[prost(message, repeated, tag = "1")]
+    pub entry: ::prost::alloc::vec::Vec<GeoIp>,
 }

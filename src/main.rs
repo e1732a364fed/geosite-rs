@@ -8,7 +8,7 @@ fn main() -> std::io::Result<()> {
     file.read_to_end(&mut buf)?;
 
     // 解析 Protobuf
-    let proto_list = geosite_rs::read(&buf).expect("load ok");
+    let proto_list = geosite_rs::decode_geosite(&buf).expect("load ok");
 
     // 打印解析结果
     for site in proto_list.site_group {
