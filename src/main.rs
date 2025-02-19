@@ -11,8 +11,8 @@ fn main() -> std::io::Result<()> {
     let proto_list = geosite_rs::decode_geosite(&buf).expect("load ok");
 
     // 打印解析结果
-    for site in proto_list.site_group {
-        println!("Tag: {}", site.tag);
+    for site in proto_list.entry {
+        println!("Tag: {}", site.country_code);
         for domain in site.domain {
             println!("  - Type: {:?}, Value: {}", domain.r#type(), domain.value);
         }

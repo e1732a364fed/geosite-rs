@@ -1,17 +1,20 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    net::{Ipv4Addr, Ipv6Addr},
+};
 
 use prost::Message;
 
 /// parse dat data (which has protobuf format)
-pub fn decode_geosite(buf: &[u8]) -> Result<SiteGroupList, prost::DecodeError> {
-    SiteGroupList::decode(buf)
+pub fn decode_geosite(buf: &[u8]) -> Result<GeoSiteList, prost::DecodeError> {
+    GeoSiteList::decode(buf)
 }
 
 /// save to the dat format (which has protobuf format)
-pub fn encode_geosite(sg: SiteGroupList) -> Vec<u8> {
+pub fn encode_geosite(sg: GeoSiteList) -> Vec<u8> {
     sg.encode_to_vec()
 }
-///
+
 /// parse dat data (which has protobuf format)
 pub fn decode_geoip(buf: &[u8]) -> Result<GeoIpList, prost::DecodeError> {
     GeoIpList::decode(buf)
@@ -22,13 +25,73 @@ pub fn encode_geoip(sg: GeoIpList) -> Vec<u8> {
     sg.encode_to_vec()
 }
 
+fn vec_to_u32_be(bytes: &[u8]) -> u32 {
+    assert!(bytes.len() == 4, "Input Vec<u8> must have exactly 4 bytes");
+    let mut array = [0u8; 4];
+    array.copy_from_slice(bytes);
+    u32::from_be_bytes(array)
+}
+fn vec_to_u128_be(bytes: &[u8]) -> u128 {
+    assert!(
+        bytes.len() == 16,
+        "Input Vec<u8> must have exactly 16 bytes"
+    );
+    let mut array = [0u8; 16];
+    array.copy_from_slice(bytes);
+    u128::from_be_bytes(array)
+}
+
+/// covert to a hashmap that is compatible with the one in crate 'clash_rules'
+///
+/// key is "IP-CIDR","IP-CIDR6"
+pub fn geoip_to_hashmap(
+    geoip_list: &GeoIpList,
+    country_target_map: HashMap<String, String>,
+) -> HashMap<String, Vec<Vec<String>>> {
+    let mut map: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+    for ipg in &geoip_list.entry {
+        for cidr in &ipg.cidr {
+            let ipn = &cidr.ip;
+            if ipn.len() == 4 {
+                let ia = Ipv4Addr::from(vec_to_u32_be(ipn));
+                let is = ia.to_string();
+                let s = format!("{is}/{}", cidr.prefix);
+                let v = vec![
+                    s,
+                    country_target_map
+                        .get(&ipg.country_code)
+                        .unwrap()
+                        .to_string(),
+                ];
+                map.entry("IP-CIDR".to_string()).or_default().push(v);
+            } else if ipn.len() == 16 {
+                let ia = Ipv6Addr::from(vec_to_u128_be(ipn));
+                let is = ia.to_string();
+                let s = format!("{is}/{}", cidr.prefix);
+                let v = vec![
+                    s,
+                    country_target_map
+                        .get(&ipg.country_code)
+                        .unwrap()
+                        .to_string(),
+                ];
+                map.entry("IP-CIDR6".to_string()).or_default().push(v);
+            }
+        }
+    }
+    map
+}
+
 /// covert to a hashmap that is compatible with the one in crate 'clash_rules'
 ///
 /// key is "DOMAIN-KEYWORD","DOMAIN-SUFFIX","DOMAIN","DOMAIN-REGEX".
-pub fn to_hashmap(site_group_list: &SiteGroupList) -> HashMap<String, Vec<Vec<String>>> {
+pub fn geosite_to_hashmap(
+    site_group_list: &GeoSiteList,
+    group_target_map: HashMap<String, String>,
+) -> HashMap<String, Vec<Vec<String>>> {
     let mut map: HashMap<String, Vec<Vec<String>>> = HashMap::new();
 
-    for group in &site_group_list.site_group {
+    for group in &site_group_list.entry {
         for domain in &group.domain {
             let key = match domain.r#type {
                 0 => "DOMAIN-KEYWORD", // Plain
@@ -38,7 +101,13 @@ pub fn to_hashmap(site_group_list: &SiteGroupList) -> HashMap<String, Vec<Vec<St
                 _ => continue,         // 跳过未知类型
             };
 
-            let v = vec![domain.value.clone(), group.tag.clone()];
+            let v = vec![
+                domain.value.clone(),
+                group_target_map
+                    .get(&group.country_code)
+                    .unwrap()
+                    .to_string(),
+            ];
             map.entry(key.to_string()).or_default().push(v);
         }
     }
@@ -119,18 +188,18 @@ pub mod domain {
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SiteGroup {
+pub struct GeoSite {
     #[prost(string, tag = "1")]
-    pub tag: ::prost::alloc::string::String,
+    pub country_code: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
     pub domain: ::prost::alloc::vec::Vec<Domain>,
 }
 
 /// the final dat file has this type
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SiteGroupList {
+pub struct GeoSiteList {
     #[prost(message, repeated, tag = "1")]
-    pub site_group: ::prost::alloc::vec::Vec<SiteGroup>,
+    pub entry: ::prost::alloc::vec::Vec<GeoSite>,
 }
 /// IP for routing decision, in CIDR form.
 #[derive(Clone, PartialEq, ::prost::Message)]

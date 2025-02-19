@@ -52,12 +52,21 @@ message GeoIPList {
   repeated GeoIP entry = 1;
 }
 
-message SiteGroup {
-    string tag = 1;
-    repeated Domain domain = 2;
+// 项的命名不影响解析，不过这里还是按 v2ray 定义的名称
+//message SiteGroup {
+//    string tag = 1;
+//    repeated Domain domain = 2;
+//}
+//
+//message SiteGroupList {
+//    repeated SiteGroup site_group = 1;
+//}
+
+message GeoSite {
+  string country_code = 1;
+  repeated Domain domain = 2;
 }
 
-message SiteGroupList {
-    repeated SiteGroup site_group = 1;
+message GeoSiteList {
+  repeated GeoSite entry = 1;
 }
-
