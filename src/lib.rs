@@ -60,7 +60,7 @@ pub fn geoip_to_hashmap(
                     s,
                     country_target_map
                         .get(&ipg.country_code)
-                        .unwrap()
+                        .unwrap_or(&ipg.country_code)
                         .to_string(),
                 ];
                 map.entry("IP-CIDR".to_string()).or_default().push(v);
@@ -72,7 +72,7 @@ pub fn geoip_to_hashmap(
                     s,
                     country_target_map
                         .get(&ipg.country_code)
-                        .unwrap()
+                        .unwrap_or(&ipg.country_code)
                         .to_string(),
                 ];
                 map.entry("IP-CIDR6".to_string()).or_default().push(v);
